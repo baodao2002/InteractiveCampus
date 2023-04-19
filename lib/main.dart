@@ -30,6 +30,9 @@ class _MyAppState extends State<MyApp> {
   Set<Marker> markersCopy = {};
 
   LocationData? currentLocation;
+  LatLng? currentLocationLatLng;
+  Circle? circleFilter;
+  final Set<Circle> _circles = {};
 
   // Tool States
   bool _isSwitched = false;
@@ -53,7 +56,7 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  // User Location Related
+  // USER LOCATION RELATED -----------------------------
   void getCurrentLocation() async {
     Location location = Location();
 
@@ -64,9 +67,15 @@ class _MyAppState extends State<MyApp> {
 
     // Gets location updates
     location.onLocationChanged.listen(
-      (LocationData updatedLocation){
-        currentLocation = updatedLocation;
-      }
+            (LocationData updatedLocation){
+          currentLocation = updatedLocation;
+          currentLocationLatLng = LatLng(currentLocation!.latitude!, currentLocation!.longitude!);
+          // Gets most recent location to update the circle
+          if(_isSwitched){
+            log("ACCESSED");
+            enableCircleFilter();
+          }
+        }
     );
   }
 
@@ -88,13 +97,13 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-
   @override
   void initState(){
     super.initState();
     getCurrentLocation();
   }
 
+  // GENERAL FILTERS -----------------------------
   void _filterMarkers() {
     int filterCount = 0;
     Set<Marker> tmp = {};
@@ -127,6 +136,31 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  // CIRCLE FILTER -----------------------------
+  void enableCircleFilter() {
+    // Note: setState required for accurate circle updates
+    setState(() {
+      circleFilter = Circle(
+        circleId: const CircleId('circle_filter'),
+        center: currentLocationLatLng!,
+        radius: 100,
+        fillColor: Colors.lightBlueAccent.withOpacity(0.3),
+        strokeColor: Colors.white.withOpacity(0.0),
+      );
+
+      // Ensures only one circle is in _circles (otherwise causes duplicates)
+      if(_circles.isNotEmpty){
+        _circles.clear();
+      }
+      _circles.add(circleFilter!);
+    });
+  }
+
+  void disableCircleFilter() {
+    _circles.remove(circleFilter);
+  }
+
+  // WIDGET -----------------------------
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -152,7 +186,7 @@ class _MyAppState extends State<MyApp> {
         ),
         drawer: Builder(
             builder: (context) => Drawer(
-                    child: ListView(padding: EdgeInsets.zero, children: [
+                child: ListView(padding: EdgeInsets.zero, children: [
                   const DrawerHeader(
                     decoration: BoxDecoration(
                         color: Color(0xFF8B1C3F),
@@ -162,131 +196,138 @@ class _MyAppState extends State<MyApp> {
                     child: Text(''),
                   ),
 
-                // General Buttons
-                ListTile(
-                  leading: const Icon(Icons.map_outlined),
-                  title: const Text('Map'),
-                  onTap: () {
-                    // Update the state of the app.
-                    // ...
-                    Navigator.pop(context);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.help_outline),
-                  title: const Text('Help'),
-                  onTap: () {
-                    // Update the state of the app.
-                    // ...
-                    Navigator.push(
+                  // General Buttons
+                  ListTile(
+                    leading: const Icon(Icons.map_outlined),
+                    title: const Text('Map'),
+                    onTap: () {
+                      // Update the state of the app.
+                      // ...
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.help_outline),
+                    title: const Text('Help'),
+                    onTap: () {
+                      // Update the state of the app.
+                      // ...
+                      Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const HelpPage()),
-                    );
-                  },
-                ),
-                const Divider(),
+                      );
+                    },
+                  ),
+                  const Divider(),
 
-                // Tools
-                SwitchListTile(
-                  title: const Text('Locations Near Me'),
-                  secondary: const Icon(Icons.near_me),
-                  value: _isSwitched,
-                  onChanged: (value) {
-                    setState(() {
-                      _isSwitched = value;
-                    });
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.local_parking),
-                  title: const Text('Nearest Parking'),
-                  onTap: () {
-                    // Update the state of the app.
-                    // ...
-                  },
-                ),
-                const Divider(),
+                  // Tools
+                  SwitchListTile(
+                    title: const Text('Locations Near Me'),
+                    secondary: const Icon(Icons.near_me),
+                    value: _isSwitched,
+                    onChanged: (value) {
+                      setState(() {
+                        _isSwitched = value;
+                        if(_isSwitched){
+                          enableCircleFilter();
+                        }
+                        else{
+                          disableCircleFilter();
+                        }
+                      });
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.local_parking),
+                    title: const Text('Nearest Parking'),
+                    onTap: () {
+                      // Update the state of the app.
+                      // ...
+                    },
+                  ),
+                  const Divider(),
 
-                // Filters
-                CheckboxListTile(
-                  title: const Text('Parking Lots'),
-                  secondary: const Icon(Icons.car_repair_rounded),
-                  controlAffinity: ListTileControlAffinity.platform,
-                  value: parkingChecked,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      // Using a null-aware operator in case value is null
-                      parkingChecked = value ?? false;
-                    });
-                    _filterMarkers();
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Classrooms'),
-                  secondary: const Icon(Icons.book),
-                  controlAffinity: ListTileControlAffinity.platform,
-                  value: classroomsChecked,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      // Using a null-aware operator in case value is null
-                      classroomsChecked = value ?? false;
-                    });
-                    _filterMarkers();
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Student Resources'),
-                  secondary: const Icon(Icons.account_balance),
-                  controlAffinity: ListTileControlAffinity.platform,
-                  value: studentResourcesChecked,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      // Using a null-aware operator in case value is null
-                      studentResourcesChecked = value ?? false;
-                    });
-                    _filterMarkers();
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Food'),
-                  secondary: const Icon(Icons.food_bank),
-                  controlAffinity: ListTileControlAffinity.platform,
-                  value: foodChecked,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      // Using a null-aware operator in case value is null
-                      foodChecked = value ?? false;
-                    });
-                    _filterMarkers();
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Athletics'),
-                  secondary: const Icon(Icons.sports_tennis_rounded),
-                  controlAffinity: ListTileControlAffinity.platform,
-                  value: athleticsChecked,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      // Using a null-aware operator in case value is null
-                      athleticsChecked = value ?? false;
-                    });
-                    _filterMarkers();
-                  },
-                ),
-              ]
-            )
+                  // Filters
+                  CheckboxListTile(
+                    title: const Text('Parking Lots'),
+                    secondary: const Icon(Icons.car_repair_rounded),
+                    controlAffinity: ListTileControlAffinity.platform,
+                    value: parkingChecked,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        // Using a null-aware operator in case value is null
+                        parkingChecked = value ?? false;
+                      });
+                      _filterMarkers();
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Classrooms'),
+                    secondary: const Icon(Icons.book),
+                    controlAffinity: ListTileControlAffinity.platform,
+                    value: classroomsChecked,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        // Using a null-aware operator in case value is null
+                        classroomsChecked = value ?? false;
+                      });
+                      _filterMarkers();
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Student Resources'),
+                    secondary: const Icon(Icons.account_balance),
+                    controlAffinity: ListTileControlAffinity.platform,
+                    value: studentResourcesChecked,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        // Using a null-aware operator in case value is null
+                        studentResourcesChecked = value ?? false;
+                      });
+                      _filterMarkers();
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Food'),
+                    secondary: const Icon(Icons.food_bank),
+                    controlAffinity: ListTileControlAffinity.platform,
+                    value: foodChecked,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        // Using a null-aware operator in case value is null
+                        foodChecked = value ?? false;
+                      });
+                      _filterMarkers();
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Athletics'),
+                    secondary: const Icon(Icons.sports_tennis_rounded),
+                    controlAffinity: ListTileControlAffinity.platform,
+                    value: athleticsChecked,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        // Using a null-aware operator in case value is null
+                        athleticsChecked = value ?? false;
+                      });
+                      _filterMarkers();
+                    },
+                  ),
+                ]
+                )
             )
         ),
         body: Builder(
-          builder: (context) => GoogleMap(
-          onMapCreated: (controller) => _onMapCreated(controller, context),
-          initialCameraPosition: CameraPosition(
-            target: _center,
-            zoom: 17.0,
-          ),
-          markers: markers,
-          myLocationEnabled: true,
-          )
+            builder: (context) => GoogleMap(
+              onMapCreated: (controller) => _onMapCreated(controller, context),
+              initialCameraPosition: CameraPosition(
+                target: _center,
+                zoom: 17.0,
+              ),
+              markers: markers,
+              myLocationEnabled: true,
+              circles: _circles,
+            )
         ),
       ),
     );
